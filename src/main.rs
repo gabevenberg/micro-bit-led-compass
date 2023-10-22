@@ -4,7 +4,12 @@
 
 use core::f32::consts::PI;
 
+use calibration::Calibration;
 use cortex_m_rt::entry;
+use lsm303agr::interface::I2cInterface;
+use lsm303agr::mode::MagContinuous;
+use microbit::hal::{gpiote::Gpiote, Twim};
+use microbit::pac::TWIM0;
 use panic_rtt_target as _;
 use rtt_target::{rprintln, rtt_init_print};
 
@@ -21,12 +26,14 @@ use microbit::{hal::twi, pac::twi0::frequency::FREQUENCY_A};
 use microbit::{hal::twim, pac::twim0::frequency::FREQUENCY_A};
 
 use lsm303agr::{AccelOutputDataRate, Lsm303agr, MagOutputDataRate};
+use tilt_compensation::Heading;
 
-#[cfg(feature = "calibration")]
 use crate::calibration::calc_calibration;
 
 use crate::led::{direction_to_led, theta_to_direction};
-use crate::tilt_compensation::{calc_attitude, calc_tilt_calibrated_measurement, swd_to_ned};
+use crate::tilt_compensation::{
+    calc_attitude, calc_tilt_calibrated_measurement, heading_from_measurement, swd_to_ned,
+};
 
 const DELAY: u32 = 100;
 
@@ -44,6 +51,19 @@ fn main() -> ! {
     let mut timer = Timer::new(board.TIMER0);
     let mut display = Display::new(board.display_pins);
 
+    let gpiote = Gpiote::new(board.GPIOTE);
+    let channel_button_a = gpiote.channel0();
+    channel_button_a
+        .input_pin(&board.buttons.button_a.degrade())
+        .hi_to_lo();
+    channel_button_a.reset_events();
+
+    let channel_button_b = gpiote.channel1();
+    channel_button_b
+        .input_pin(&board.buttons.button_b.degrade())
+        .hi_to_lo();
+    channel_button_b.reset_events();
+
     let mut sensor = Lsm303agr::new_with_i2c(i2c);
     sensor.init().unwrap();
     sensor.set_mag_odr(MagOutputDataRate::Hz10).unwrap();
@@ -52,40 +72,69 @@ fn main() -> ! {
 
     //TODO: re-callibrate with button.
     #[cfg(feature = "calibration")]
-    let calibration = calc_calibration(&mut sensor, &mut display, &mut timer);
+    let mut calibration = calc_calibration(&mut sensor, &mut display, &mut timer);
     #[cfg(not(feature = "calibration"))]
-    let calibration = calibration::Calibration::default();
+    let mut calibration = calibration::Calibration::default();
     rprintln!("Calibration: {:?}", calibration);
 
+    let mut tilt_correction_enabled: bool = true;
+
     loop {
-        while !(sensor.mag_status().unwrap().xyz_new_data
-            && sensor.accel_status().unwrap().xyz_new_data)
-        {}
-        let mag_data = sensor.mag_data().unwrap();
-        let mag_data = calibration::calibrated_measurement(mag_data, &calibration);
-        let acel_data = sensor.accel_data().unwrap();
+        if channel_button_b.is_event_triggered() {
+            calibration = calc_calibration(&mut sensor, &mut display, &mut timer);
+            channel_button_b.reset_events();
+            rprintln!("Calibration: {:?}", calibration);
+        }
+        if channel_button_a.is_event_triggered(){
+            //toggles the bool.
+            tilt_correction_enabled ^= true;
+            channel_button_a.reset_events()
+        }
 
-        let ned_mag_data = swd_to_ned(mag_data);
-        let ned_acel_data = swd_to_ned(acel_data);
-
-        let attitude = calc_attitude(&ned_acel_data);
-
-        //theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west
-        let heading = calc_tilt_calibrated_measurement(ned_mag_data, &attitude);
-
-        #[cfg(not(feature = "calibration"))]
-        rprintln!(
-            "pitch: {:<+5.0}, roll: {:<+5.0}, heading: {:<+5.0}",
-            attitude.pitch * (180.0 / PI),
-            attitude.roll * (180.0 / PI),
-            heading.0 * (180.0 / PI),
-        );
-        rprintln!("x: {:<+16}, y: {:<+16}, z: {:<+16}", ned_acel_data.x, ned_acel_data.y, ned_acel_data.z);
-
+        let heading = calc_heading(&mut sensor, &calibration, &tilt_correction_enabled);
         display.show(
             &mut timer,
             direction_to_led(theta_to_direction(heading)),
             DELAY,
         )
     }
+}
+
+fn calc_heading(
+    sensor: &mut Lsm303agr<I2cInterface<Twim<TWIM0>>, MagContinuous>,
+    mag_calibration: &Calibration, tilt_correction_enabled: &bool
+) -> Heading {
+    while !(sensor.mag_status().unwrap().xyz_new_data
+        && sensor.accel_status().unwrap().xyz_new_data)
+    {}
+    let mag_data = sensor.mag_data().unwrap();
+    let mag_data = calibration::calibrated_measurement(mag_data, mag_calibration);
+    let acel_data = sensor.accel_data().unwrap();
+
+    let mut ned_mag_data = swd_to_ned(mag_data);
+    let ned_acel_data = swd_to_ned(acel_data);
+
+    let attitude = calc_attitude(&ned_acel_data);
+
+    if *tilt_correction_enabled {
+        ned_mag_data = calc_tilt_calibrated_measurement(ned_mag_data, &attitude);
+    }
+    //theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west
+    let heading = heading_from_measurement(ned_mag_data);
+
+    #[cfg(not(feature = "calibration"))]
+    rprintln!(
+        "pitch: {:<+5.0}, roll: {:<+5.0}, heading: {:<+5.0}",
+        attitude.pitch * (180.0 / PI),
+        attitude.roll * (180.0 / PI),
+        heading.0 * (180.0 / PI),
+    );
+    #[cfg(not(feature = "calibration"))]
+    rprintln!(
+        "x: {:<+16}, y: {:<+16}, z: {:<+16}",
+        ned_acel_data.x,
+        ned_acel_data.y,
+        ned_acel_data.z
+    );
+    heading
 }

@@ -40,15 +40,23 @@ pub fn calc_attitude(measurement: &NedMeasurement) -> Attitude {
 pub fn calc_tilt_calibrated_measurement(
     mag_measurement: NedMeasurement,
     attitde: &Attitude,
-) -> Heading {
+) -> NedMeasurement {
     //based off of: https://www.nxp.com/docs/en/application-note/AN4248.pdf
 
-    let corrected_mag_y = mag_measurement.z * sinf(attitde.roll)
-        - mag_measurement.y * cosf(attitde.roll);
+    let corrected_mag_y =
+        mag_measurement.z * sinf(attitde.roll) - mag_measurement.y * cosf(attitde.roll);
 
     let corrected_mag_x = mag_measurement.x * cosf(attitde.pitch)
         + mag_measurement.y * sinf(attitde.pitch) * sinf(attitde.roll)
         + mag_measurement.z * sinf(attitde.pitch) * cosf(attitde.roll);
 
-    Heading(atan2f(-corrected_mag_y, corrected_mag_x))
+    NedMeasurement {
+        x: corrected_mag_x,
+        y: corrected_mag_y,
+        z: 0.0,
+    }
+}
+
+pub fn heading_from_measurement(measurement: NedMeasurement) -> Heading {
+    Heading(atan2f(-measurement.y, measurement.x))
 }
