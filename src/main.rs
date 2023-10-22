@@ -16,6 +16,7 @@ use rtt_target::{rprintln, rtt_init_print};
 mod calibration;
 mod led;
 mod tilt_compensation;
+mod line_drawing;
 
 use microbit::{display::blocking::Display, hal::Timer};
 
