@@ -1,13 +1,43 @@
-use core::{iter::Iterator, mem::swap};
+use core::mem::swap;
 
-struct Point {
+pub struct Point {
     x: isize,
     y: isize,
 }
 
+impl Point {
+    /// converts a point (representing a point on a 4 quadrant grid) into a upoint (representing a
+    /// point on a 1 quadrant grid with the origin in the bottom-left corner). Returns none if
+    /// the resulting point would have either number negative.
+    pub fn to_upoint(&self, zero_coord: &UPoint) -> Option<UPoint> {
+        Some(UPoint {
+            x: zero_coord.x.checked_add_signed(self.x)?,
+            y: zero_coord.y.checked_add_signed(self.y)?,
+        })
+    }
+}
 
+pub struct UPoint {
+    x: usize,
+    y: usize,
+}
 
-fn draw_line(mut p0: Point, mut p1: Point, matrix: &mut [[u8; 5]; 5]) {
+impl UPoint {
+    /// converts a upoint (representing a point on a 1 quadrant grid with the origin in the
+    /// bottom-left corner) into a point( representing a point on a 4 quadrant grid
+    pub fn to_point(&self, zero_coord: &UPoint) -> Point {
+        Point {
+            x: zero_coord.x as isize - self.x as isize,
+            y: zero_coord.y as isize - self.y as isize,
+        }
+    }
+}
+
+pub fn draw_line<const X: usize, const Y: usize>(
+    mut p0: Point,
+    mut p1: Point,
+    matrix: &mut [[u8; X]; Y],
+) {
     let steep = (p0.x - p1.x).abs() < (p0.y - p1.x).abs();
 
     if steep {
