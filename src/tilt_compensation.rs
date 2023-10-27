@@ -18,14 +18,14 @@ pub struct NedMeasurement {
 //theta=0 at south, pi/-pi at north, pi/2 at east, and -pi/2 at west (current)
 pub struct Heading(pub f32);
 
-/// board has forward in the -y direction and right in the -x direction, and down in the -z. (SWU),  algs for tilt compensation
+/// board has forward in the y direction and right in the -x direction, and down in the -z. (ENU),  algs for tilt compensation
 /// need forward in +x and right in +y (this is known as the NED (north, east, down) cordinate
 /// system)
 /// also converts to f32
 pub fn swd_to_ned(measurement: Measurement) -> NedMeasurement {
     NedMeasurement {
-        x: measurement.y as f32,
-        y: measurement.x as f32,
+        x: -measurement.y as f32,
+        y: -measurement.x as f32,
         z: -measurement.z as f32,
     }
 }

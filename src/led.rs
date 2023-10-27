@@ -92,23 +92,42 @@ pub fn direction_to_led(direction: Direction) -> [[u8; 5]; 5] {
 }
 
 pub fn theta_to_direction(heading: Heading) -> Direction {
+    // if heading.0 < (-7. * PI / 8.) {
+    //     Direction::North
+    // } else if heading.0 < (-5. * PI / 8.) {
+    //     Direction::NorthWest
+    // } else if heading.0 < (-3. * PI / 8.) {
+    //     Direction::West
+    // } else if heading.0 < (-PI / 8.) {
+    //     Direction::SouthWest
+    // } else if heading.0 < (PI / 8.) {
+    //     Direction::South
+    // } else if heading.0 < (3. * PI / 8.) {
+    //     Direction::SouthEast
+    // } else if heading.0 < (5. * PI / 8.) {
+    //     Direction::East
+    // } else if heading.0 < (7. * PI / 8.) {
+    //     Direction::NorthEast
+    // } else {
+    //     Direction::North
+    // }
     if heading.0 < (-7. * PI / 8.) {
-        Direction::North
-    } else if heading.0 < (-5. * PI / 8.) {
-        Direction::NorthWest
-    } else if heading.0 < (-3. * PI / 8.) {
-        Direction::West
-    } else if heading.0 < (-PI / 8.) {
-        Direction::SouthWest
-    } else if heading.0 < (PI / 8.) {
         Direction::South
-    } else if heading.0 < (3. * PI / 8.) {
+    } else if heading.0 < (-5. * PI / 8.) {
         Direction::SouthEast
-    } else if heading.0 < (5. * PI / 8.) {
+    } else if heading.0 < (-3. * PI / 8.) {
         Direction::East
-    } else if heading.0 < (7. * PI / 8.) {
+    } else if heading.0 < (-PI / 8.) {
         Direction::NorthEast
-    } else {
+    } else if heading.0 < (PI / 8.) {
         Direction::North
+    } else if heading.0 < (3. * PI / 8.) {
+        Direction::NorthWest
+    } else if heading.0 < (5. * PI / 8.) {
+        Direction::West
+    } else if heading.0 < (7. * PI / 8.) {
+        Direction::SouthWest
+    } else {
+        Direction::South
     }
 }
