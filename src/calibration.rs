@@ -59,7 +59,7 @@ where
     E: Debug,
 {
     let data = get_data(sensor, display, timer);
-    return calibrate(&data);
+    calibrate(&data)
 }
 
 fn get_data<I, T, E>(
@@ -124,7 +124,7 @@ where
         }
         display.show(timer, leds, 200);
     }
-    return data;
+    data
 }
 
 fn difference_square(a: Measurement, b: Measurement) -> f32 {
@@ -164,9 +164,9 @@ fn calibrate(data: &[Measurement]) -> Calibration {
         center.z += point.z;
     }
 
-    center.x = center.x / data.len() as i32;
-    center.y = center.y / data.len() as i32;
-    center.z = center.z / data.len() as i32;
+    center.x /= data.len() as i32;
+    center.y /= data.len() as i32;
+    center.z /= data.len() as i32;
 
     let mut current = center;
     let mut score = measure_score(current, data);

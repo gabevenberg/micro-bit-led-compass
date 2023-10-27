@@ -13,6 +13,7 @@ pub enum Direction {
     NorthWest,
 }
 
+//forward is towards usb port
 const NORTH: [[u8; 5]; 5] = [
     [0, 0, 1, 0, 0],
     [0, 1, 1, 1, 0],

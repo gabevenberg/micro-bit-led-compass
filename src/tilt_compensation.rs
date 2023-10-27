@@ -14,7 +14,8 @@ pub struct NedMeasurement {
     pub z: f32,
 }
 
-//theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west
+//theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west (desired)
+//theta=0 at south, pi/-pi at north, pi/2 at east, and -pi/2 at west (current)
 pub struct Heading(pub f32);
 
 /// board has forward in the -y direction and right in the -x direction, and down in the -z. (SWU),  algs for tilt compensation
@@ -57,6 +58,7 @@ pub fn calc_tilt_calibrated_measurement(
     }
 }
 
+//0 is the top sector and positive is clockwise, negative is counterclockwise.
 pub fn heading_from_measurement(measurement: NedMeasurement) -> Heading {
     Heading(atan2f(-measurement.y, measurement.x))
 }

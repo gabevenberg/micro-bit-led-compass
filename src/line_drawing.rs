@@ -1,6 +1,6 @@
 use core::mem::swap;
 
-pub struct Point {
+struct Point {
     x: isize,
     y: isize,
 }
@@ -9,7 +9,7 @@ impl Point {
     /// converts a point (representing a point on a 4 quadrant grid) into a upoint (representing a
     /// point on a 1 quadrant grid with the origin in the bottom-left corner). Returns none if
     /// the resulting point would have either number negative.
-    pub fn to_upoint(&self, zero_coord: &UPoint) -> Option<UPoint> {
+    fn to_upoint(&self, zero_coord: &UPoint) -> Option<UPoint> {
         Some(UPoint {
             x: zero_coord.x.checked_add_signed(self.x)?,
             y: zero_coord.y.checked_add_signed(self.y)?,
@@ -17,7 +17,7 @@ impl Point {
     }
 }
 
-pub struct UPoint {
+struct UPoint {
     x: usize,
     y: usize,
 }
@@ -33,7 +33,7 @@ impl UPoint {
     }
 }
 
-pub fn draw_line<const X: usize, const Y: usize>(
+fn draw_line<const X: usize, const Y: usize>(
     mut p0: Point,
     mut p1: Point,
     matrix: &mut [[u8; X]; Y],
@@ -69,4 +69,8 @@ pub fn draw_line<const X: usize, const Y: usize>(
             error2 -= dx * 2
         }
     }
+}
+
+fn heading_to_sector(sectors: u8, heading: f32) -> u8 {
+    todo!()
 }
