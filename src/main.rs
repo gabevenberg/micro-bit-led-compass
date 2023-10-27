@@ -17,6 +17,7 @@ mod calibration;
 mod led;
 mod tilt_compensation;
 mod line_drawing;
+mod heading_drawing;
 
 use microbit::{display::blocking::Display, hal::Timer};
 
