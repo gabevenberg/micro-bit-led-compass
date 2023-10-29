@@ -8,16 +8,13 @@ use calibration::Calibration;
 use cortex_m_rt::entry;
 use lsm303agr::interface::I2cInterface;
 use lsm303agr::mode::MagContinuous;
+use lsm303agr::{AccelOutputDataRate, Lsm303agr, MagOutputDataRate, Measurement};
 use microbit::hal::{gpiote::Gpiote, Twim};
 use microbit::pac::TWIM0;
 use panic_rtt_target as _;
 use rtt_target::{rprintln, rtt_init_print};
 
 mod calibration;
-mod led;
-mod tilt_compensation;
-mod line_drawing;
-mod heading_drawing;
 
 use microbit::{display::blocking::Display, hal::Timer};
 
@@ -27,14 +24,14 @@ use microbit::{hal::twi, pac::twi0::frequency::FREQUENCY_A};
 #[cfg(feature = "v2")]
 use microbit::{hal::twim, pac::twim0::frequency::FREQUENCY_A};
 
-use lsm303agr::{AccelOutputDataRate, Lsm303agr, MagOutputDataRate};
-use tilt_compensation::Heading;
-
 use crate::calibration::calc_calibration;
 
-use crate::led::{direction_to_led, theta_to_direction};
-use crate::tilt_compensation::{
-    calc_attitude, calc_tilt_calibrated_measurement, heading_from_measurement, swd_to_ned,
+use independent_logic::{
+    led::{direction_to_led, theta_to_direction},
+    tilt_compensation::{
+        calc_attitude, calc_tilt_calibrated_measurement, heading_from_measurement, Heading,
+        NedMeasurement,
+    },
 };
 
 const DELAY: u32 = 100;
@@ -87,7 +84,7 @@ fn main() -> ! {
             channel_button_b.reset_events();
             rprintln!("Calibration: {:?}", calibration);
         }
-        if channel_button_a.is_event_triggered(){
+        if channel_button_a.is_event_triggered() {
             //toggles the bool.
             tilt_correction_enabled ^= true;
             channel_button_a.reset_events()
@@ -102,9 +99,22 @@ fn main() -> ! {
     }
 }
 
+/// board has forward in the y direction and right in the -x direction, and down in the -z. (ENU),  algs for tilt compensation
+/// need forward in +x and right in +y (this is known as the NED (north, east, down) cordinate
+/// system)
+/// also converts to f32
+pub fn swd_to_ned(measurement: Measurement) -> NedMeasurement {
+    NedMeasurement {
+        x: -measurement.y as f32,
+        y: -measurement.x as f32,
+        z: -measurement.z as f32,
+    }
+}
+
 fn calc_heading(
     sensor: &mut Lsm303agr<I2cInterface<Twim<TWIM0>>, MagContinuous>,
-    mag_calibration: &Calibration, tilt_correction_enabled: &bool
+    mag_calibration: &Calibration,
+    tilt_correction_enabled: &bool,
 ) -> Heading {
     while !(sensor.mag_status().unwrap().xyz_new_data
         && sensor.accel_status().unwrap().xyz_new_data)

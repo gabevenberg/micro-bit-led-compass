@@ -1,5 +1,4 @@
 use libm::{atan2f, atanf, cosf, sinf};
-use lsm303agr::Measurement;
 
 #[derive(Debug)]
 pub struct Attitude {
@@ -17,18 +16,6 @@ pub struct NedMeasurement {
 //theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west (desired)
 //theta=0 at south, pi/-pi at north, pi/2 at east, and -pi/2 at west (current)
 pub struct Heading(pub f32);
-
-/// board has forward in the y direction and right in the -x direction, and down in the -z. (ENU),  algs for tilt compensation
-/// need forward in +x and right in +y (this is known as the NED (north, east, down) cordinate
-/// system)
-/// also converts to f32
-pub fn swd_to_ned(measurement: Measurement) -> NedMeasurement {
-    NedMeasurement {
-        x: -measurement.y as f32,
-        y: -measurement.x as f32,
-        z: -measurement.z as f32,
-    }
-}
 
 pub fn calc_attitude(measurement: &NedMeasurement) -> Attitude {
     //based off of: https://www.nxp.com/docs/en/application-note/AN4248.pdf
@@ -62,3 +49,5 @@ pub fn calc_tilt_calibrated_measurement(
 pub fn heading_from_measurement(measurement: NedMeasurement) -> Heading {
     Heading(atan2f(-measurement.y, measurement.x))
 }
+
+//I have no freaking clue how to test this...
