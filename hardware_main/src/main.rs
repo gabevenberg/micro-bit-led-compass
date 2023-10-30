@@ -2,6 +2,7 @@
 #![no_main]
 #![no_std]
 
+#[cfg(debug_assertions)]
 use core::f32::consts::PI;
 
 use calibration::Calibration;
@@ -12,7 +13,12 @@ use lsm303agr::mode::MagContinuous;
 use lsm303agr::{AccelOutputDataRate, Lsm303agr, MagOutputDataRate, Measurement};
 use microbit::hal::{gpiote::Gpiote, Twim};
 use microbit::pac::TWIM0;
+#[cfg(not(debug_assertions))]
+use panic_halt as _;
+
+#[cfg(debug_assertions)]
 use panic_rtt_target as _;
+#[cfg(debug_assertions)]
 use rtt_target::{rprintln, rtt_init_print};
 
 mod calibration;
@@ -39,6 +45,7 @@ const DELAY: u32 = 100;
 
 #[entry]
 fn main() -> ! {
+    #[cfg(debug_assertions)]
     rtt_init_print!();
     let board = microbit::Board::take().unwrap();
 
@@ -78,6 +85,7 @@ fn main() -> ! {
 
     let mut current_display: FourQuadrantMatrix<5, 5, u8> =
         FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
+    #[cfg(debug_assertions)]
     rprintln!("Calibration: {:?}", calibration);
 
     let mut tilt_correction_enabled: bool = true;
@@ -87,6 +95,7 @@ fn main() -> ! {
         if channel_button_b.is_event_triggered() {
             calibration = calc_calibration(&mut sensor, &mut display, &mut timer);
             channel_button_b.reset_events();
+            #[cfg(debug_assertions)]
             rprintln!("Calibration: {:?}", calibration);
         }
         if channel_button_a.is_event_triggered() {
@@ -97,12 +106,8 @@ fn main() -> ! {
 
         current_display.reset_matrix();
 
-        // heading.0 = (heading.0+PI/16.0)%(2.0*PI);
-        // rprintln!("heading is {}PI", heading.0/PI);
-
         let heading = calc_heading(&mut sensor, &calibration, &tilt_correction_enabled);
         draw_heading::<5, 5>(heading.0, &mut current_display);
-        rprintln!("finished drawing");
         display.show(&mut timer, current_display.into(), DELAY)
     }
 }
@@ -142,14 +147,14 @@ fn calc_heading(
     //theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west
     let heading = heading_from_measurement(ned_mag_data);
 
-    #[cfg(not(feature = "calibration"))]
+    #[cfg(all(not(feature = "calibration"), debug_assertions))]
     rprintln!(
         "pitch: {:<+5.0}, roll: {:<+5.0}, heading: {:<+5.0}",
         attitude.pitch * (180.0 / PI),
         attitude.roll * (180.0 / PI),
         heading.0 * (180.0 / PI),
     );
-    #[cfg(not(feature = "calibration"))]
+    #[cfg(all(not(feature = "calibration"), debug_assertions))]
     rprintln!(
         "x: {:<+16}, y: {:<+16}, z: {:<+16}",
         ned_acel_data.x,

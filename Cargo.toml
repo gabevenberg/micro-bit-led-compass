@@ -1,3 +1,10 @@
 [workspace]
 members = ["hardware_main", "independent_logic"]
 resolver = "2"
+
+[profile.release]
+strip = true  # Automatically strip symbols from the binary.
+opt-level = "z"  # Optimize for size.
+lto = true
+codegen-units = 1
+panic = "abort"
