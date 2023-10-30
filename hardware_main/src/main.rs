@@ -6,6 +6,7 @@ use core::f32::consts::PI;
 
 use calibration::Calibration;
 use cortex_m_rt::entry;
+use independent_logic::line_drawing::{FourQuadrantMatrix, UPoint};
 use lsm303agr::interface::I2cInterface;
 use lsm303agr::mode::MagContinuous;
 use lsm303agr::{AccelOutputDataRate, Lsm303agr, MagOutputDataRate, Measurement};
@@ -27,7 +28,7 @@ use microbit::{hal::twim, pac::twim0::frequency::FREQUENCY_A};
 use crate::calibration::calc_calibration;
 
 use independent_logic::{
-    led::{direction_to_led, theta_to_direction},
+    heading_drawing::draw_heading,
     tilt_compensation::{
         calc_attitude, calc_tilt_calibrated_measurement, heading_from_measurement, Heading,
         NedMeasurement,
@@ -74,10 +75,14 @@ fn main() -> ! {
     let mut calibration = calc_calibration(&mut sensor, &mut display, &mut timer);
     #[cfg(not(feature = "calibration"))]
     let mut calibration = calibration::Calibration::default();
+
+    let mut current_display: FourQuadrantMatrix<5, 5, u8> =
+        FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
     rprintln!("Calibration: {:?}", calibration);
 
     let mut tilt_correction_enabled: bool = true;
 
+    // let mut heading = Heading(0.0);
     loop {
         if channel_button_b.is_event_triggered() {
             calibration = calc_calibration(&mut sensor, &mut display, &mut timer);
@@ -90,12 +95,15 @@ fn main() -> ! {
             channel_button_a.reset_events()
         }
 
+        current_display.reset_matrix();
+
+        // heading.0 = (heading.0+PI/16.0)%(2.0*PI);
+        // rprintln!("heading is {}PI", heading.0/PI);
+
         let heading = calc_heading(&mut sensor, &calibration, &tilt_correction_enabled);
-        display.show(
-            &mut timer,
-            direction_to_led(theta_to_direction(heading)),
-            DELAY,
-        )
+        draw_heading::<5, 5>(heading.0, &mut current_display);
+        rprintln!("finished drawing");
+        display.show(&mut timer, current_display.into(), DELAY)
     }
 }
 

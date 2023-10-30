@@ -2,6 +2,8 @@ use core::{
     mem::swap,
     ops::{Index, IndexMut},
 };
+#[cfg(test)]
+use std::dbg;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Point {
@@ -44,7 +46,9 @@ impl UPoint {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FourQuadrantMatrix<const X: usize, const Y: usize, T> {
     matrix: [[T; X]; Y],
-    pub zero_coord: UPoint,
+    max_point: Point,
+    min_point: Point,
+    zero_coord: UPoint,
 }
 
 impl<const X: usize, const Y: usize, T> FourQuadrantMatrix<{ X }, { Y }, T>
@@ -55,8 +59,50 @@ where
     pub fn new(zero_coord: UPoint) -> FourQuadrantMatrix<{ X }, { Y }, T> {
         FourQuadrantMatrix {
             matrix: [[T::default(); X]; Y],
+            max_point: UPoint { x: X - 1, y: 0 }.to_point(&zero_coord),
+            min_point: UPoint { x: 0, y: Y - 1 }.to_point(&zero_coord),
             zero_coord,
         }
+    }
+
+    pub fn zero_coord(&self) -> UPoint {
+        self.zero_coord
+    }
+
+    pub fn min_point(&self) -> Point {
+        self.min_point
+    }
+
+    pub fn max_point(&self) -> Point {
+        self.max_point
+    }
+
+    pub fn bound_point(&self, point: &mut Point) {
+        if point.x > self.max_point.x {
+            point.x = self.max_point.x
+        }
+
+        if point.y > self.max_point.y {
+            point.y = self.max_point.y
+        }
+
+        if point.x < self.min_point.x {
+            point.x = self.min_point.x
+        }
+
+        if point.y < self.min_point.y {
+            point.y = self.min_point.y
+        }
+    }
+
+    pub fn is_in_bounds(&self, point: &Point) -> bool {
+        point.x <= self.max_point.x
+            && point.y <= self.max_point.y
+            && point.x >= self.min_point.x
+            && point.y >= self.min_point.y
+    }
+    pub fn reset_matrix(&mut self) {
+        self.matrix = [[T::default(); X]; Y];
     }
 }
 
@@ -94,48 +140,90 @@ pub struct Line(pub Point, pub Point);
 pub struct ULine(pub UPoint, pub UPoint);
 
 /// Renders a line into a matrix of pixels.
+/// Will not attempt to mutate outside bounds of the matrix, so it is safe to draw lines that
+/// extend past its edges.
 pub fn draw_line<const X: usize, const Y: usize>(
     line: &Line,
     matrix: &mut FourQuadrantMatrix<{ X }, { Y }, u8>,
 ) {
     let mut line = *line;
-    let steep = (line.0.x - line.1.x).abs() < (line.0.y - line.1.x).abs();
+    #[cfg(test)]
+    dbg!(line);
 
+    // Is it steeper than 45°? If so, we transpose the line. This essentially guarantees we are
+    // drawing a line less steep than 45°.
+    #[cfg(test)]
+    dbg!((line.0.x - line.1.x).abs() < (line.0.y - line.1.y).abs());
+    let steep = (line.0.x - line.1.x).abs() < (line.0.y - line.1.y).abs();
     if steep {
         swap(&mut line.0.x, &mut line.0.y);
         swap(&mut line.1.x, &mut line.1.y);
     }
 
+    // If our line is running right-to-left, flip the points
+    // so we start on the left.
     if line.0.x > line.1.x {
         swap(&mut line.0.x, &mut line.1.x);
         swap(&mut line.0.y, &mut line.1.y)
     }
 
+    #[cfg(test)]
+    dbg!((line, steep));
     let dx = line.1.x - line.0.x;
     let dy = line.1.y - line.0.y;
     let derror2 = dy.abs() * 2;
     let mut error2 = 0;
     let mut y = line.0.y;
+    let mut draw_point: Point;
 
+    //if the first point is out of bounds, we want to wait for us to get in bounds before arming
+    //the early return.
+    let mut prev_out_of_bounds = !matrix.is_in_bounds(&line.0);
+
+    // For each X coordinate (which is actually a Y coordinate if the line is steep), we calculate
+    // the Y coordinate the same way as before
     for x in line.0.x..=line.1.x {
+        #[cfg(test)]
+        dbg!((dx, dy, derror2, error2, y, steep, prev_out_of_bounds));
         if steep {
-            matrix[Point { x: y, y: x }] = 1;
+            // Remember the transpose? This is where we undo it, by swapping our y and x
+            // coordinates again
+            draw_point = Point { x: y, y: x };
         } else {
-            matrix[Point { x, y }] = 1;
+            draw_point = Point { x, y };
+        }
+
+        #[cfg(test)]
+        dbg!(draw_point);
+
+        if matrix.is_in_bounds(&draw_point) {
+            matrix[draw_point] = 1;
+            prev_out_of_bounds = false;
+        } else {
+            if !prev_out_of_bounds {
+                break;
+            }
+            prev_out_of_bounds = true;
         }
 
         error2 += derror2;
+
+        #[cfg(test)]
+        dbg!((dx, dy, derror2, error2, y, steep, prev_out_of_bounds));
 
         if error2 > dx {
             y += if line.1.y > line.0.y { 1 } else { -1 };
             error2 -= dx * 2
         }
+        #[cfg(test)]
+        dbg!((dx, dy, derror2, error2, y, steep, prev_out_of_bounds));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn point_upoint_conv() {
         let zero_coord = UPoint { x: 2, y: 2 };
@@ -221,6 +309,126 @@ mod tests {
                 [1, 0, 0, 0, 0],
             ]
         )
+    }
+
+    #[test]
+    fn diagonal_signed_both_oob_line() {
+        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+            FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
+        draw_line(
+            &Line(Point { x: -10, y: -10 }, Point { x: 10, y: 10 }),
+            &mut canvas,
+        );
+        assert_eq!(
+            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            [
+                [0, 0, 0, 0, 1],
+                [0, 0, 0, 1, 0],
+                [0, 0, 1, 0, 0],
+                [0, 1, 0, 0, 0],
+                [1, 0, 0, 0, 0],
+            ]
+        );
+    }
+
+    #[test]
+    fn diagonal_signed_first_oob_line() {
+        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+            FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
+        draw_line(
+            &Line(Point { x: -10, y: -10 }, Point { x: 2, y: 2 }),
+            &mut canvas,
+        );
+        assert_eq!(
+            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            [
+                [0, 0, 0, 0, 1],
+                [0, 0, 0, 1, 0],
+                [0, 0, 1, 0, 0],
+                [0, 1, 0, 0, 0],
+                [1, 0, 0, 0, 0],
+            ]
+        );
+    }
+
+    #[test]
+    fn diagonal_signed_second_oob_line() {
+        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+            FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
+        draw_line(
+            &Line(Point { x: -2, y: -2 }, Point { x: 10, y: 10 }),
+            &mut canvas,
+        );
+        assert_eq!(
+            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            [
+                [0, 0, 0, 0, 1],
+                [0, 0, 0, 1, 0],
+                [0, 0, 1, 0, 0],
+                [0, 1, 0, 0, 0],
+                [1, 0, 0, 0, 0],
+            ]
+        );
+    }
+
+    #[test]
+    fn vertical_signed_both_oob_line() {
+        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+            FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
+        draw_line(
+            &Line(Point { x: 0, y: -10 }, Point { x: 0, y: 10 }),
+            &mut canvas,
+        );
+        assert_eq!(
+            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            [
+                [0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0],
+            ]
+        );
+    }
+
+    #[test]
+    fn vertical_signed_first_oob_line() {
+        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+            FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
+        draw_line(
+            &Line(Point { x: 0, y: -10 }, Point { x: 0, y: 0 }),
+            &mut canvas,
+        );
+        assert_eq!(
+            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            [
+                [0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0],
+            ]
+        );
+    }
+
+    #[test]
+    fn vertical_signed_second_oob_line() {
+        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+            FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
+        draw_line(
+            &Line(Point { x: 0, y: 0 }, Point { x: 0, y: 10 }),
+            &mut canvas,
+        );
+        assert_eq!(
+            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            [
+                [0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0],
+            ]
+        );
     }
 
     #[test]
