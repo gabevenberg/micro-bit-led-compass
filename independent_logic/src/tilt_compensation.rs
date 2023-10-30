@@ -13,8 +13,7 @@ pub struct NedMeasurement {
     pub z: f32,
 }
 
-//theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west (desired)
-//theta=0 at south, pi/-pi at north, pi/2 at east, and -pi/2 at west (current)
+///theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west
 pub struct Heading(pub f32);
 
 pub fn calc_attitude(measurement: &NedMeasurement) -> Attitude {
@@ -22,7 +21,6 @@ pub fn calc_attitude(measurement: &NedMeasurement) -> Attitude {
     let roll = atan2f(measurement.y, measurement.z);
     let pitch = atanf(-measurement.x / (measurement.y * sinf(roll) + measurement.z * cosf(roll)));
     Attitude { pitch, roll }
-    // Attitude { pitch: 0.0, roll: 0.0 }
 }
 
 pub fn calc_tilt_calibrated_measurement(

@@ -116,7 +116,7 @@ fn main() -> ! {
 /// need forward in +x and right in +y (this is known as the NED (north, east, down) cordinate
 /// system)
 /// also converts to f32
-pub fn swd_to_ned(measurement: Measurement) -> NedMeasurement {
+pub fn enu_to_ned(measurement: Measurement) -> NedMeasurement {
     NedMeasurement {
         x: -measurement.y as f32,
         y: -measurement.x as f32,
@@ -136,8 +136,8 @@ fn calc_heading(
     let mag_data = calibration::calibrated_measurement(mag_data, mag_calibration);
     let acel_data = sensor.accel_data().unwrap();
 
-    let mut ned_mag_data = swd_to_ned(mag_data);
-    let ned_acel_data = swd_to_ned(acel_data);
+    let mut ned_mag_data = enu_to_ned(mag_data);
+    let ned_acel_data = enu_to_ned(acel_data);
 
     let attitude = calc_attitude(&ned_acel_data);
 

@@ -5,6 +5,7 @@ use core::{
 #[cfg(test)]
 use std::dbg;
 
+/// a signed point in 2d space
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Point {
     pub x: isize,
@@ -23,6 +24,7 @@ impl Point {
     }
 }
 
+/// an unsigned point in 2d space
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UPoint {
     pub x: usize,
@@ -42,7 +44,7 @@ impl UPoint {
 }
 
 /// A matrix that allows negative co-oordinates. Will panic if referencing out of bounds, just like
-/// a nomral matrix.
+/// a normal 2d array.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FourQuadrantMatrix<const X: usize, const Y: usize, T> {
     matrix: [[T; X]; Y],
@@ -56,6 +58,8 @@ where
     T: Copy,
     T: Default,
 {
+    /// generates a new FourQuadrantMatrix with a given zero point (the point in the underlying 2d
+    /// array considered to be (0,0))
     pub fn new(zero_coord: UPoint) -> FourQuadrantMatrix<{ X }, { Y }, T> {
         FourQuadrantMatrix {
             matrix: [[T::default(); X]; Y],
@@ -77,6 +81,7 @@ where
         self.max_point
     }
 
+    /// makes sure a point is in bounds and if not, brings it in bounds.
     pub fn bound_point(&self, point: &mut Point) {
         if point.x > self.max_point.x {
             point.x = self.max_point.x
@@ -95,12 +100,14 @@ where
         }
     }
 
+    /// checks if the point is in bounds.
     pub fn is_in_bounds(&self, point: &Point) -> bool {
         point.x <= self.max_point.x
             && point.y <= self.max_point.y
             && point.x >= self.min_point.x
             && point.y >= self.min_point.y
     }
+    /// fills the matrix with the Ts default value.
     pub fn reset_matrix(&mut self) {
         self.matrix = [[T::default(); X]; Y];
     }
@@ -132,12 +139,9 @@ impl<T, const X: usize, const Y: usize> From<FourQuadrantMatrix<{ X }, { Y }, T>
     }
 }
 
+/// a line segment in 2d space, described by its two endpoints
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Line(pub Point, pub Point);
-
-//no boxes here!
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ULine(pub UPoint, pub UPoint);
 
 /// Renders a line into a matrix of pixels.
 /// Will not attempt to mutate outside bounds of the matrix, so it is safe to draw lines that
