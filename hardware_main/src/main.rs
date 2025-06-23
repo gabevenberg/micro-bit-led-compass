@@ -34,7 +34,7 @@ use microbit::{hal::twim, pac::twim0::frequency::FREQUENCY_A};
 use crate::calibration::calc_calibration;
 
 use independent_logic::{
-    heading_drawing::draw_heading,
+    heading_drawing::draw_constant_heading,
     tilt_compensation::{
         calc_attitude, calc_tilt_calibrated_measurement, heading_from_measurement, Heading,
         NedMeasurement,
@@ -77,7 +77,6 @@ fn main() -> ! {
     sensor.set_accel_odr(AccelOutputDataRate::Hz10).unwrap();
     let mut sensor = sensor.into_mag_continuous().ok().unwrap();
 
-    //TODO: re-callibrate with button.
     #[cfg(feature = "calibration")]
     let mut calibration = calc_calibration(&mut sensor, &mut display, &mut timer);
     #[cfg(not(feature = "calibration"))]
@@ -98,28 +97,28 @@ fn main() -> ! {
             #[cfg(debug_assertions)]
             rprintln!("Calibration: {:?}", calibration);
         }
-        if channel_button_a.is_event_triggered() {
-            //toggles the bool.
-            tilt_correction_enabled ^= true;
-            channel_button_a.reset_events()
-        }
+        // if channel_button_a.is_event_triggered() {
+        //     //toggles the bool.
+        //     tilt_correction_enabled ^= true;
+        //     channel_button_a.reset_events()
+        // }
 
         current_display.reset_matrix();
 
         let heading = calc_heading(&mut sensor, &calibration, &tilt_correction_enabled);
-        draw_heading::<5, 5>(heading.0, &mut current_display);
+        draw_constant_heading::<5, 5>(heading, &mut current_display);
         display.show(&mut timer, current_display.into(), DELAY)
     }
 }
 
-/// board has forward in the y direction and right in the -x direction, and down in the -z. (ENU),  algs for tilt compensation
+/// board has forward in the -y direction and right in the +x direction, and down in the -z. (ENU),  algs for tilt compensation
 /// need forward in +x and right in +y (this is known as the NED (north, east, down) cordinate
 /// system)
 /// also converts to f32
 pub fn enu_to_ned(measurement: Measurement) -> NedMeasurement {
     NedMeasurement {
         x: -measurement.y as f32,
-        y: -measurement.x as f32,
+        y: measurement.x as f32,
         z: -measurement.z as f32,
     }
 }
@@ -145,7 +144,7 @@ fn calc_heading(
         ned_mag_data = calc_tilt_calibrated_measurement(ned_mag_data, &attitude);
     }
     //theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west
-    let heading = heading_from_measurement(ned_mag_data);
+    let heading = heading_from_measurement(&ned_mag_data);
 
     #[cfg(all(not(feature = "calibration"), debug_assertions))]
     rprintln!(
@@ -154,9 +153,15 @@ fn calc_heading(
         attitude.roll * (180.0 / PI),
         heading.0 * (180.0 / PI),
     );
+    rprintln!(
+        "mag: x: {:<+16}, y: {:<+16}, z: {:<+16}",
+        ned_mag_data.x,
+        ned_mag_data.y,
+        ned_mag_data.z
+    );
     #[cfg(all(not(feature = "calibration"), debug_assertions))]
     rprintln!(
-        "x: {:<+16}, y: {:<+16}, z: {:<+16}",
+        "acell: x: {:<+16}, y: {:<+16}, z: {:<+16}",
         ned_acel_data.x,
         ned_acel_data.y,
         ned_acel_data.z
