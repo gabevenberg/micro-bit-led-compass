@@ -2,169 +2,68 @@
 #![no_main]
 #![no_std]
 
-#[cfg(debug_assertions)]
-use core::f32::consts::PI;
-
-use calibration::Calibration;
-use cortex_m_rt::entry;
-use independent_logic::line_drawing::{FourQuadrantMatrix, UPoint};
-use lsm303agr::interface::I2cInterface;
-use lsm303agr::mode::MagContinuous;
-use lsm303agr::{AccelOutputDataRate, Lsm303agr, MagOutputDataRate, Measurement};
-use microbit::hal::{gpiote::Gpiote, Twim};
-use microbit::pac::TWIM0;
-#[cfg(not(debug_assertions))]
-use panic_halt as _;
-
-#[cfg(debug_assertions)]
-use panic_rtt_target as _;
-#[cfg(debug_assertions)]
-use rtt_target::{rprintln, rtt_init_print};
-
-mod calibration;
-
-use microbit::{display::blocking::Display, hal::Timer};
-
-#[cfg(feature = "v1")]
-use microbit::{hal::twi, pac::twi0::frequency::FREQUENCY_A};
-
-#[cfg(feature = "v2")]
-use microbit::{hal::twim, pac::twim0::frequency::FREQUENCY_A};
-
-use crate::calibration::calc_calibration;
-
-use independent_logic::{
-    heading_drawing::draw_constant_heading,
-    tilt_compensation::{
-        calc_attitude, calc_tilt_calibrated_measurement, heading_from_measurement, Heading,
-        NedMeasurement,
-    },
+use core::cmp::max;
+use defmt::info;
+use defmt_rtt as _;
+use embassy_executor::Spawner;
+use embassy_futures::join::join;
+use embassy_nrf::{
+    bind_interrupts,
+    gpio::{AnyPin, Input, Pin, Pull},
+    temp::Temp,
 };
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
+use embassy_time::{Duration, Timer, WithTimeout};
+use panic_probe as _;
 
-const DELAY: u32 = 100;
+#[derive(Debug, Clone, Copy)]
+enum Button {
+    A,
+    B,
+}
 
-#[entry]
-fn main() -> ! {
-    #[cfg(debug_assertions)]
-    rtt_init_print!();
-    let board = microbit::Board::take().unwrap();
+static SIGNAL: Signal<CriticalSectionRawMutex, Button> = Signal::new();
 
-    #[cfg(feature = "v1")]
-    let i2c = { twi::Twi::new(board.TWI0, board.i2c.into(), FREQUENCY_A::K100) };
+bind_interrupts!(struct Irqs {
+    TEMP => embassy_nrf::temp::InterruptHandler;
+});
 
-    #[cfg(feature = "v2")]
-    let i2c = { twim::Twim::new(board.TWIM0, board.i2c_internal.into(), FREQUENCY_A::K100) };
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    info!("Starting");
+    let p = embassy_nrf::init(Default::default());
+    let temp = Temp::new(p.TEMP, Irqs);
+    spawner.spawn(temp_task(temp)).unwrap();
+    let button_a = button(p.P0_14.degrade(), "A", Button::A);
+    let button_b = button(p.P0_23.degrade(), "B", Button::B);
+    join(button_a, button_b).await;
+}
 
-    let mut timer = Timer::new(board.TIMER0);
-    let mut display = Display::new(board.display_pins);
-
-    let gpiote = Gpiote::new(board.GPIOTE);
-    let channel_button_a = gpiote.channel0();
-    channel_button_a
-        .input_pin(&board.buttons.button_a.degrade())
-        .hi_to_lo();
-    channel_button_a.reset_events();
-
-    let channel_button_b = gpiote.channel1();
-    channel_button_b
-        .input_pin(&board.buttons.button_b.degrade())
-        .hi_to_lo();
-    channel_button_b.reset_events();
-
-    let mut sensor = Lsm303agr::new_with_i2c(i2c);
-    sensor.init().unwrap();
-    sensor.set_mag_odr(MagOutputDataRate::Hz10).unwrap();
-    sensor.set_accel_odr(AccelOutputDataRate::Hz10).unwrap();
-    let mut sensor = sensor.into_mag_continuous().ok().unwrap();
-
-    #[cfg(feature = "calibration")]
-    let mut calibration = calc_calibration(&mut sensor, &mut display, &mut timer);
-    #[cfg(not(feature = "calibration"))]
-    let mut calibration = calibration::Calibration::default();
-
-    let mut current_display: FourQuadrantMatrix<5, 5, u8> =
-        FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
-    #[cfg(debug_assertions)]
-    rprintln!("Calibration: {:?}", calibration);
-
-    let mut tilt_correction_enabled: bool = true;
-
-    // let mut heading = Heading(0.0);
+async fn button(pin: AnyPin, id: &'static str, b: Button) {
+    let mut button = Input::new(pin, Pull::None);
     loop {
-        if channel_button_b.is_event_triggered() {
-            calibration = calc_calibration(&mut sensor, &mut display, &mut timer);
-            channel_button_b.reset_events();
-            #[cfg(debug_assertions)]
-            rprintln!("Calibration: {:?}", calibration);
+        button.wait_for_low().await;
+        info!("Button {} Pressed!", id);
+        SIGNAL.signal(b);
+        Timer::after_millis(200).await;
+        button.wait_for_high().await;
+    }
+}
+
+#[embassy_executor::task]
+async fn temp_task(mut temp: Temp<'static>) {
+    const INTERVAL_MS: u64 = 500;
+    let mut delay_ms = INTERVAL_MS;
+    loop {
+        let value: u16 = temp.read().await.to_num();
+        info!("{} C", value);
+        let delay = Duration::from_millis(delay_ms);
+        if let Some(v) = SIGNAL.wait().with_timeout(delay).await.ok() {
+            delay_ms = match v {
+                Button::A => max(INTERVAL_MS, delay_ms.saturating_sub(INTERVAL_MS)),
+                Button::B => delay_ms + INTERVAL_MS,
+            };
+            info!("Delay = {} ms", delay_ms);
         }
-        // if channel_button_a.is_event_triggered() {
-        //     //toggles the bool.
-        //     tilt_correction_enabled ^= true;
-        //     channel_button_a.reset_events()
-        // }
-
-        current_display.reset_matrix();
-
-        let heading = calc_heading(&mut sensor, &calibration, &tilt_correction_enabled);
-        draw_constant_heading::<5, 5>(heading, &mut current_display);
-        display.show(&mut timer, current_display.into(), DELAY)
     }
-}
-
-/// board has forward in the -y direction and right in the +x direction, and down in the -z. (ENU),  algs for tilt compensation
-/// need forward in +x and right in +y (this is known as the NED (north, east, down) cordinate
-/// system)
-/// also converts to f32
-pub fn enu_to_ned(measurement: Measurement) -> NedMeasurement {
-    NedMeasurement {
-        x: -measurement.y as f32,
-        y: measurement.x as f32,
-        z: -measurement.z as f32,
-    }
-}
-
-fn calc_heading(
-    sensor: &mut Lsm303agr<I2cInterface<Twim<TWIM0>>, MagContinuous>,
-    mag_calibration: &Calibration,
-    tilt_correction_enabled: &bool,
-) -> Heading {
-    while !(sensor.mag_status().unwrap().xyz_new_data
-        && sensor.accel_status().unwrap().xyz_new_data)
-    {}
-    let mag_data = sensor.mag_data().unwrap();
-    let mag_data = calibration::calibrated_measurement(mag_data, mag_calibration);
-    let acel_data = sensor.accel_data().unwrap();
-
-    let mut ned_mag_data = enu_to_ned(mag_data);
-    let ned_acel_data = enu_to_ned(acel_data);
-
-    let attitude = calc_attitude(&ned_acel_data);
-
-    if *tilt_correction_enabled {
-        ned_mag_data = calc_tilt_calibrated_measurement(ned_mag_data, &attitude);
-    }
-    //theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west
-    let heading = heading_from_measurement(&ned_mag_data);
-
-    #[cfg(all(not(feature = "calibration"), debug_assertions))]
-    rprintln!(
-        "pitch: {:<+5.0}, roll: {:<+5.0}, heading: {:<+5.0}",
-        attitude.pitch * (180.0 / PI),
-        attitude.roll * (180.0 / PI),
-        heading.0 * (180.0 / PI),
-    );
-    rprintln!(
-        "mag: x: {:<+16}, y: {:<+16}, z: {:<+16}",
-        ned_mag_data.x,
-        ned_mag_data.y,
-        ned_mag_data.z
-    );
-    #[cfg(all(not(feature = "calibration"), debug_assertions))]
-    rprintln!(
-        "acell: x: {:<+16}, y: {:<+16}, z: {:<+16}",
-        ned_acel_data.x,
-        ned_acel_data.y,
-        ned_acel_data.z
-    );
-    heading
 }
