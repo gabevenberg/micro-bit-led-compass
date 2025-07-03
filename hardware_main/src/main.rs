@@ -58,7 +58,7 @@ async fn temp_task(mut temp: Temp<'static>) {
         let value: u16 = temp.read().await.to_num();
         info!("{} C", value);
         let delay = Duration::from_millis(delay_ms);
-        if let Some(v) = SIGNAL.wait().with_timeout(delay).await.ok() {
+        if let Ok(v) = SIGNAL.wait().with_timeout(delay).await {
             delay_ms = match v {
                 Button::A => max(INTERVAL_MS, delay_ms.saturating_sub(INTERVAL_MS)),
                 Button::B => delay_ms + INTERVAL_MS,
