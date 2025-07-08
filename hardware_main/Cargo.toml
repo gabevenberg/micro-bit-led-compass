@@ -5,16 +5,18 @@ authors = ["Gabriel Venberg"]
 edition = "2024"
 
 [dependencies]
-cortex-m = { version = "0.7.7", features = ["inline-asm", "critical-section-single-core"] }
-cortex-m-rt = "0.7.5"
-defmt = "1.0.1"
-defmt-rtt = "1.0.0"
-embassy-executor = { version = "0.7.0", features = ["arch-cortex-m", "executor-thread", "defmt"] }
-embassy-nrf = { version = "0.3.1", features = ["defmt", "nrf52833", "gpiote", "time-driver-rtc1", "time"] }
-embassy-time = { version = "0.4.0", features = ["defmt", "defmt-timestamp-uptime"] }
-lsm303agr = { version = "1.1.0", features = ["async"] }
-panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 independent_logic = {path="../independent_logic"}
-embassy-futures = { version = "0.1.1", features = ["defmt"] }
-embassy-sync = { version = "0.7.0", features = ["defmt"] }
 
+cortex-m = { version = "0.7", features = ["inline-asm", "critical-section-single-core"] }
+cortex-m-rt = "0.7"
+defmt = "1.0"
+defmt-rtt = "1.0"
+panic-probe = { version = "1.0", features = ["print-defmt"] }
+
+embassy-executor = { version = "0.7", features = ["arch-cortex-m", "executor-thread", "defmt"] }
+embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-futures = { version = "0.1", features = ["defmt"] }
+embassy-sync = { version = "0.7", features = ["defmt"] }
+
+microbit-bsp = { git = "https://github.com/lulf/microbit-bsp.git", rev = "19d555bfbbcfa39db6aac467673386662c39e299" }
+libm = "0.2.15"

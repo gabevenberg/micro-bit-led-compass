@@ -1,12 +1,13 @@
+use defmt::Format;
 use libm::{atan2f, atanf, cosf, sinf};
 
-#[derive(Debug)]
+#[derive(Debug, Format)]
 pub struct Attitude {
     pub pitch: f32,
     pub roll: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Format)]
 pub struct NedMeasurement {
     pub x: f32,
     pub y: f32,
@@ -14,6 +15,7 @@ pub struct NedMeasurement {
 }
 
 ///theta=0 at north, pi/-pi at south, pi/2 at east, and -pi/2 at west
+#[derive(Debug, Format)]
 pub struct Heading(pub f32);
 
 pub fn calc_attitude(measurement: &NedMeasurement) -> Attitude {
