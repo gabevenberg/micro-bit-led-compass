@@ -148,7 +148,7 @@ pub struct Line(pub Point, pub Point);
 /// extend past its edges.
 pub fn draw_line<const X: usize, const Y: usize>(
     line: &Line,
-    matrix: &mut FourQuadrantMatrix<{ X }, { Y }, u8>,
+    matrix: &mut FourQuadrantMatrix<{ X }, { Y }, bool>,
 ) {
     let mut line = *line;
     #[cfg(test)]
@@ -201,7 +201,7 @@ pub fn draw_line<const X: usize, const Y: usize>(
         dbg!(draw_point);
 
         if matrix.is_in_bounds(&draw_point) {
-            matrix[draw_point] = 1;
+            matrix[draw_point] = true;
             prev_out_of_bounds = false;
         } else {
             if !prev_out_of_bounds {
@@ -249,195 +249,195 @@ mod tests {
 
     #[test]
     fn four_quadrant_matrix() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
-        canvas[Point { x: 0, y: 0 }] = 1;
+        canvas[Point { x: 0, y: 0 }] = true;
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
+                [false, false, false, false, false],
+                [false, false, false, false, false],
+                [false, false, true, false, false],
+                [false, false, false, false, false],
+                [false, false, false, false, false],
             ]
         );
-        canvas[Point { x: -2, y: 1 }] = 1;
+        canvas[Point { x: -2, y: 1 }] = true;
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 0, 0, 0],
-                [1, 0, 0, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0]
+                [false, false, false, false, false],
+                [true, false, false, false, false],
+                [false, false, true, false, false],
+                [false, false, false, false, false],
+                [false, false, false, false, false]
             ]
         );
     }
 
     #[test]
     fn diagonal_unsigned_line() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 0, y: 4 });
         draw_line(
             &Line(Point { x: 0, y: 0 }, Point { x: 4, y: 4 }),
             &mut canvas,
         );
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 0, 0, 1],
-                [0, 0, 0, 1, 0],
-                [0, 0, 1, 0, 0],
-                [0, 1, 0, 0, 0],
-                [1, 0, 0, 0, 0],
+                [false, false, false, false, true],
+                [false, false, false, true, false],
+                [false, false, true, false, false],
+                [false, true, false, false, false],
+                [true, false, false, false, false],
             ]
         )
     }
 
     #[test]
     fn diagonal_signed_line() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
         draw_line(
             &Line(Point { x: -2, y: -2 }, Point { x: 2, y: 2 }),
             &mut canvas,
         );
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 0, 0, 1],
-                [0, 0, 0, 1, 0],
-                [0, 0, 1, 0, 0],
-                [0, 1, 0, 0, 0],
-                [1, 0, 0, 0, 0],
+                [false, false, false, false, true],
+                [false, false, false, true, false],
+                [false, false, true, false, false],
+                [false, true, false, false, false],
+                [true, false, false, false, false],
             ]
         )
     }
 
     #[test]
     fn diagonal_signed_both_oob_line() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
         draw_line(
             &Line(Point { x: -10, y: -10 }, Point { x: 10, y: 10 }),
             &mut canvas,
         );
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 0, 0, 1],
-                [0, 0, 0, 1, 0],
-                [0, 0, 1, 0, 0],
-                [0, 1, 0, 0, 0],
-                [1, 0, 0, 0, 0],
+                [false, false, false, false, true],
+                [false, false, false, true, false],
+                [false, false, true, false, false],
+                [false, true, false, false, false],
+                [true, false, false, false, false],
             ]
         );
     }
 
     #[test]
     fn diagonal_signed_first_oob_line() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
         draw_line(
             &Line(Point { x: -10, y: -10 }, Point { x: 2, y: 2 }),
             &mut canvas,
         );
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 0, 0, 1],
-                [0, 0, 0, 1, 0],
-                [0, 0, 1, 0, 0],
-                [0, 1, 0, 0, 0],
-                [1, 0, 0, 0, 0],
+                [false, false, false, false, true],
+                [false, false, false, true, false],
+                [false, false, true, false, false],
+                [false, true, false, false, false],
+                [true, false, false, false, false],
             ]
         );
     }
 
     #[test]
     fn diagonal_signed_second_oob_line() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
         draw_line(
             &Line(Point { x: -2, y: -2 }, Point { x: 10, y: 10 }),
             &mut canvas,
         );
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 0, 0, 1],
-                [0, 0, 0, 1, 0],
-                [0, 0, 1, 0, 0],
-                [0, 1, 0, 0, 0],
-                [1, 0, 0, 0, 0],
+                [false, false, false, false, true],
+                [false, false, false, true, false],
+                [false, false, true, false, false],
+                [false, true, false, false, false],
+                [true, false, false, false, false],
             ]
         );
     }
 
     #[test]
     fn vertical_signed_both_oob_line() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
         draw_line(
             &Line(Point { x: 0, y: -10 }, Point { x: 0, y: 10 }),
             &mut canvas,
         );
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
             ]
         );
     }
 
     #[test]
     fn vertical_signed_first_oob_line() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
         draw_line(
             &Line(Point { x: 0, y: -10 }, Point { x: 0, y: 0 }),
             &mut canvas,
         );
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
+                [false, false, false, false, false],
+                [false, false, false, false, false],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
             ]
         );
     }
 
     #[test]
     fn vertical_signed_second_oob_line() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
         draw_line(
             &Line(Point { x: 0, y: 0 }, Point { x: 0, y: 10 }),
             &mut canvas,
         );
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
+                [false, false, false, false, false],
+                [false, false, false, false, false],
             ]
         );
     }
 
     #[test]
     fn cross_signed_line() {
-        let mut canvas: FourQuadrantMatrix<5, 5, u8> =
+        let mut canvas: FourQuadrantMatrix<5, 5, bool> =
             FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
         draw_line(
             &Line(Point { x: 0, y: -2 }, Point { x: 0, y: 2 }),
@@ -448,13 +448,13 @@ mod tests {
             &mut canvas,
         );
         assert_eq!(
-            <FourQuadrantMatrix<5, 5, u8> as Into<[[u8; 5]; 5]>>::into(canvas),
+            <FourQuadrantMatrix<5, 5, bool> as Into<[[bool; 5]; 5]>>::into(canvas),
             [
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
-                [1, 1, 1, 1, 1],
-                [0, 0, 1, 0, 0],
-                [0, 0, 1, 0, 0],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
+                [true, true, true, true, true],
+                [false, false, true, false, false],
+                [false, false, true, false, false],
             ]
         )
     }

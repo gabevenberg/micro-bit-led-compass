@@ -17,7 +17,7 @@ fn heading_to_line(heading: Heading, square_size: usize) -> Line {
 // draws a line always pointing towards heading 0
 pub fn draw_constant_heading<const X: usize, const Y: usize>(
     heading: Heading,
-    matrix: &mut FourQuadrantMatrix<{ X }, { Y }, u8>,
+    matrix: &mut FourQuadrantMatrix<{ X }, { Y }, bool>,
 ) {
     draw_line::<X, Y>(&heading_to_line(heading, X.min(Y)), matrix);
 }
