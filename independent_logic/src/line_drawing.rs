@@ -5,8 +5,10 @@ use core::{
 #[cfg(test)]
 use std::dbg;
 
+use defmt::Format;
+
 /// a signed point in 2d space
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Format, Clone, Copy, PartialEq, Eq)]
 pub struct Point {
     pub x: isize,
     pub y: isize,
@@ -25,7 +27,7 @@ impl Point {
 }
 
 /// an unsigned point in 2d space
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Format, Clone, Copy, PartialEq, Eq)]
 pub struct UPoint {
     pub x: usize,
     pub y: usize,
@@ -45,7 +47,7 @@ impl UPoint {
 
 /// A matrix that allows negative co-oordinates. Will panic if referencing out of bounds, just like
 /// a normal 2d array.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Format, Clone, Copy, PartialEq, Eq)]
 pub struct FourQuadrantMatrix<const X: usize, const Y: usize, T> {
     matrix: [[T; X]; Y],
     max_point: Point,
@@ -136,6 +138,12 @@ impl<T, const X: usize, const Y: usize> Index<Point> for FourQuadrantMatrix<{ X 
 impl<T, const X: usize, const Y: usize> From<FourQuadrantMatrix<{ X }, { Y }, T>> for [[T; X]; Y] {
     fn from(value: FourQuadrantMatrix<{ X }, { Y }, T>) -> Self {
         value.matrix
+    }
+}
+
+impl<'a, T, const X: usize, const Y: usize> From<&'a FourQuadrantMatrix<{ X }, { Y }, T>> for &'a [[T; X]; Y] {
+    fn from(value:&'a FourQuadrantMatrix<{ X }, { Y }, T>) -> Self {
+        &value.matrix
     }
 }
 

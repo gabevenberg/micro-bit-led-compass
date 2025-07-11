@@ -19,5 +19,6 @@ pub fn draw_constant_heading<const X: usize, const Y: usize>(
     heading: Heading,
     matrix: &mut FourQuadrantMatrix<{ X }, { Y }, bool>,
 ) {
-    draw_line::<X, Y>(&heading_to_line(heading, X.min(Y)), matrix);
+    matrix.reset_matrix();
+    draw_line::<X, Y>(&heading_to_line(Heading(-heading.0), X.min(Y)), matrix);
 }

@@ -5,12 +5,17 @@
 use core::f32::consts::PI;
 use defmt::{debug, info};
 use embassy_executor::Spawner;
-use embassy_time::Timer;
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
+use embassy_time::{Duration, Ticker};
 use microbit_bsp::{
-    Microbit,
-    display::{Brightness, Frame},
-    embassy_nrf::{bind_interrupts, peripherals::TWISPI0, twim::InterruptHandler},
-    lsm303agr,
+    LedMatrix, Microbit,
+    display::{Bitmap, Brightness, Frame},
+    embassy_nrf::{
+        bind_interrupts,
+        peripherals::TWISPI0,
+        twim::{InterruptHandler, Twim},
+    },
+    lsm303agr::{self, Lsm303agr, interface::I2cInterface, mode::MagContinuous},
     motion::new_lsm303agr,
 };
 use {defmt_rtt as _, panic_probe as _};
@@ -24,8 +29,10 @@ use independent_logic::{
     },
 };
 
+static HEADING: Signal<CriticalSectionRawMutex, Heading> = Signal::new();
+
 #[embassy_executor::main]
-async fn main(_s: Spawner) {
+async fn main(s: Spawner) {
     let board = Microbit::default();
     defmt::info!("Application started!");
 
@@ -62,24 +69,62 @@ async fn main(_s: Spawner) {
         )
         .await
         .unwrap();
+    s.must_spawn(get_data(sensor));
+    s.must_spawn(display_data(display));
+}
 
-    Timer::after_secs(2).await;
-
+#[embassy_executor::task]
+async fn display_data(mut display: LedMatrix) {
+    let mut display_matrix: FourQuadrantMatrix<5, 5, bool> =
+        FourQuadrantMatrix::new(UPoint { x: 2, y: 2 });
     loop {
-        let (x, y, z) = sensor.magnetic_field().await.unwrap().xyz_nt();
-        let mag_measurement = to_ned(x, y, z);
-        let (x, y, z) = sensor.acceleration().await.unwrap().xyz_mg();
-        let accel_measurement = to_ned(x, y, z);
-        debug!("Mag: {}, Accel: {}", mag_measurement, accel_measurement);
-        Timer::after_millis(250).await;
-        let attitude = calc_attitude(&accel_measurement);
-        let mag_measurement = calc_tilt_calibrated_measurement(mag_measurement, &attitude);
-        let heading = heading_from_measurement(&mag_measurement);
-        debug!("Attitude: {}, Heading: {}", attitude, heading.0*(180.0/PI));
+        let heading = HEADING.wait().await;
+        info!("Heading: {}", heading.0 * (180.0 / PI));
+        draw_constant_heading(heading, &mut display_matrix);
+        display
+            .display(to_frame(&display_matrix), Duration::from_hz(25))
+            .await;
     }
 }
 
-pub fn to_ned(x: i32, y: i32, z: i32) -> NedMeasurement {
+#[embassy_executor::task]
+async fn get_data(mut sensor: Lsm303agr<I2cInterface<Twim<'static, TWISPI0>>, MagContinuous>) {
+    let mut ticker = Ticker::every(Duration::from_hz(25));
+    loop {
+        let (x, y, z) = sensor
+            .magnetic_field()
+            .await
+            .expect("didnt get mag data")
+            .xyz_nt();
+        let mag_measurement = to_ned(x, y, z);
+        let (x, y, z) = sensor
+            .acceleration()
+            .await
+            .expect("didnt get accel data")
+            .xyz_mg();
+        let accel_measurement = to_ned(x, y, z);
+        debug!("Mag: {}, Accel: {}", mag_measurement, accel_measurement);
+        let attitude = calc_attitude(&accel_measurement);
+        let mag_measurement = calc_tilt_calibrated_measurement(mag_measurement, &attitude);
+        HEADING.signal(heading_from_measurement(&mag_measurement));
+        ticker.next().await;
+    }
+}
+
+// TODO: make the line drawing lib produce a slice of bitmaps directly.
+fn to_frame(matrix: &FourQuadrantMatrix<5, 5, bool>) -> Frame<5, 5> {
+    Frame::new(
+        core::convert::Into::<&[[bool; 5]; 5]>::into(matrix).map(|bools| {
+            let mut bit: u8 = 0;
+            for (i, bool) in bools.into_iter().enumerate() {
+                bit |= (bool as u8) << i;
+            }
+            Bitmap::new(bit, 5)
+        }),
+    )
+}
+
+fn to_ned(x: i32, y: i32, z: i32) -> NedMeasurement {
     NedMeasurement {
         x: -y as f32,
         y: x as f32,
